@@ -4,11 +4,13 @@
 -- Variable :
 local speedMaster = 16
 local mainExecId = 1
+local layoutTrackID = 1
+local execNbr = 1 -- Numero de l'exec principal
 
-local startPageExec = 0
-local startMacro = 76
-local startTimecode = 0
-local startView = 2000
+local startPageExec = 1
+local startMacro = 2001
+local startTimecode = 1
+local startView = 2001
 
 -- Setup :
 local haveFeedback = true
@@ -27,19 +29,34 @@ local property = gma.show.property
 
 local function feedback(text)
     if haveFeedback then
-        gma.feedback("Plugin trackshow : " .. text)
+        gma.feedback("Plugin track Bovin : " .. text)
     else
         echo(text)
     end
 end
 
 local function echo(text)
-    gma.echo("Plugin trackshow : " .. text)
+    gma.echo("Plugin track Bovin : " .. text)
 end
 
 local function error(text)
-    gma.gui.msgbox("Plugin trackshow ERREUR", text)
-    feedback("Trackshow plugin ERROR : " .. text)
+    gma.gui.msgbox("Plugin track Bovin ERREUR", text)
+    feedback("Plugin track Bovin ERREUR : " .. text)
+end
+
+local function blindEdit(mode)
+    if mode then
+        cmd('BlindEdit On')
+    else
+        cmd('BlindEdit Off')
+    end
+end
+
+local function findAvailableMacro(first)
+    while getobj.verify(getobj.handle('Macro ' .. first)) do
+        first = first + 1
+    end
+    return first
 end
 
 local function createMacroLine(macro, line, command)
@@ -66,14 +83,51 @@ local function createMacro(id, name)
 end
 
 local function start(arg)
-    local trackId = tonumber(textinput('ID nouveau track', '0'))
+    blindEdit(true)
+    cmd('Clear All')
+
+    local trackId = findAvailableMacro(startMacro) - startMacro
     local trackName = (textinput('Nom nouveau track ?', 'Ma bite'))
+
     if confirm('Confirmer la création', 'Confirmer la création d\'une nouvelle track avec l\'ID ' .. trackId) then
+        -- Creation de la macro
         createMacro(trackId, trackName)
+
+        -- Creation du TC
         cmd('Store Timecode ' .. startTimecode + trackId .. ' "' .. trackName .. '"')
+
+        -- Assign dans layout view
+        if not getobj.verify(getobj.handle('Layout ' .. layoutTrackID)) then -- creation layout view si existe pas
+            cmd('Store Layout ' .. layoutTrackID .. ' "Tracklist"')
+        end
+        cmd('Assign Macro ' .. startMacro + trackId .. ' At Layout ' .. layoutTrackID .. '/m')
+
+        -- Creation de la page
+        if not getobj.verify(getobj.handle('Page ' .. startPageExec + trackId)) then
+            cmd('Store Page ' .. startPageExec + trackId .. ' "' .. trackName .. '"')
+        else
+            if confirm('Page existant', 'Attention, une page existe déjà en ' .. startPageExec + trackId ..
+                '.\nVoulez vous la renommer ?') then
+                cmd('Label Page ' .. startPageExec + trackId .. ' "' .. trackName .. '"')
+            end
+        end
+
+        -- Creation de l'exec principal
+        if not getobj.verify(getobj.handle('Exec ' .. startPageExec + trackId .. '.' .. mainExecId)) then
+            cmd('Store Exec ' .. startPageExec + trackId .. '.' .. mainExecId .. ' "' .. trackName .. ' MAIN"')
+        else
+            if confirm('Exec existant', 'Attention, un exec existe déjà en ' .. startPageExec + trackId .. '.' ..
+                mainExecId .. '\nVoulez vous le delete ?') then
+                cmd('Delete Exec ' .. startPageExec + trackId .. '.' .. mainExecId)
+                cmd('Store Exec ' .. startPageExec + trackId .. '.' .. mainExecId .. ' "' .. trackName .. ' MAIN"')
+            else
+                feedback('Exec principal non crée')
+            end
+        end
     else
         msgbox('Création annulée', 'Création du track (' .. trackName .. ', ID ' .. trackId .. ') annulé')
     end
+    blindEdit(false)
 end
 
 return start

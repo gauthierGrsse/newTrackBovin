@@ -6,6 +6,7 @@ local speedMaster = 16
 local mainExecId = 1
 local layoutTrackID = 1
 local execNbr = 1 -- Numero de l'exec principal
+local macroNbrTrack = 2000
 
 local startPageExec = 1
 local startMacro = 2001
@@ -69,7 +70,8 @@ local function createMacro(id, name)
     createMacroLine(macroId, 1, "Page " .. startPageExec + id)
     createMacroLine(macroId, 2, 'Select Executor 1')
     createMacroLine(macroId, 3, 'Fader 1 At Full')
-    createMacroLine(macroId, 4, 'Appearance Macro 77 Thru 106 /h=0 /s=100 /br=100')
+    createMacroLine(macroId, 4,
+        'Appearance Macro ' .. startMacro .. ' Thru ' .. startMacro + macroId .. ' /h=0 /s=100 /br=100')
     createMacroLine(macroId, 5, 'Appearance Macro ' .. macroId .. ' /h=120 /s=100 /br=100')
     createMacroLine(macroId, 6, 'Copy View 289 At View 301 /o')
     createMacroLine(macroId, 7, 'Kill 1')
@@ -82,6 +84,14 @@ local function createMacro(id, name)
     createMacroLine(macroId, 14, 'Go Timecode ' .. startTimecode + id)
 end
 
+local function updateMacroAppearance(trackId)
+    local x = startMacro
+    while x < (startMacro + trackId) do
+        cmd('Store Macro 1.' .. x .. '.4 "Appearance Macro ' .. startMacro .. ' Thru ' .. startMacro + trackId .. ' /h=0 /s=100 /br=100"')
+        x = x + 1
+    end
+end
+
 local function start(arg)
     blindEdit(true)
     cmd('Clear All')
@@ -89,9 +99,12 @@ local function start(arg)
     local trackId = findAvailableMacro(startMacro) - startMacro
     local trackName = (textinput('Nom nouveau track ?', 'Ma bite'))
 
-    if confirm('Confirmer la création', 'Confirmer la création d\'une nouvelle track avec l\'ID ' .. trackId) then
+    if confirm('Confirmer la création', 'Confirmer la création d\'une nouvelle track avec l\'ID ' .. trackId + 1) then
         -- Creation de la macro
         createMacro(trackId, trackName)
+
+        -- Update macro appearance
+        updateMacroAppearance(trackId)
 
         -- Creation du TC
         cmd('Store Timecode ' .. startTimecode + trackId .. ' "' .. trackName .. '"')

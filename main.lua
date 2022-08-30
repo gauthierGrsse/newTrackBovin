@@ -6,12 +6,12 @@ local speedMaster = 16
 local mainExecId = 1
 local layoutTrackID = 1
 local execNbr = 1 -- Numero de l'exec principal
-local macroNbrTrack = 2000
+local macroNbrTrack = 20
 
 local startPageExec = 1
 local startMacro = 2001
 local startTimecode = 1
-local startView = 2001
+local startView = 20
 
 -- Setup :
 local haveFeedback = true
@@ -64,6 +64,25 @@ local function createMacroLine(macro, line, command)
     cmd('Store Macro 1.' .. macro .. '.' .. line .. ' "' .. command .. '"')
 end
 
+local function createView(id, name)
+    local viewXML =
+        '<?xml version="1.0" encoding="utf-8"?><MA xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://schemas.malighting.de/grandma2/xml/MA" xsi:schemaLocation="http://schemas.malighting.de/grandma2/xml/MA http://schemas.malighting.de/grandma2/xml/3.9.60/MA.xsd" major_vers="1" minor_vers="0" stream_vers="00"><Info datetime="2022-08-30T22:23:31" showfile="bovin" /><View index="4" name="VIEW BASE" display_mask="2"><BitMap width="96" height="48"><Image></Image></BitMap><Widget index="0" type="4c41594f" display_nr="1" y="5" anz_rows="3" anz_cols="16"><Data><Data>0</Data><Data>0</Data><Data>0</Data><Data>0</Data></Data><Camera index="1"><Rotation rotation_x="0" rotation_y="0" rotation_z="0" /></Camera></Widget><Widget index="1" type="47524f55" display_nr="1" y="4" anz_rows="1" anz_cols="14" scroll_offset="' ..
+            id * 100 + 100 .. '" scroll_index="' .. id * 100 + 100 ..
+            '"><Data><Data>0</Data><Data>0</Data><Data>0</Data><Data>3</Data></Data></Widget><Widget index="2" type="454e4749" display_nr="1" anz_rows="4" anz_cols="14" scroll_offset="' ..
+            id * 100 + 100 .. '" scroll_index="' .. id * 100 + 100 ..
+            '"><Data><Data>0</Data><Data>1</Data><Data>0</Data><Data>3</Data></Data></Widget><Widget index="3" type="4d414352" display_nr="1" has_focus="true" has_scrollfocus="true" x="14" anz_rows="5" anz_cols="2" scroll_offset="64" scroll_index="64"><Data><Data>0</Data><Data>0</Data><Data>0</Data><Data>3</Data></Data></Widget></View></MA>'
+    local fileName = 'tempfileview.xml'
+
+    cmd('SelectDrive 1')
+
+    local filePath = gma.show.getvar('PATH') .. '/importexport/' .. fileName
+    local file = io.open(filePath, "w")
+    file:write(viewXML) -- ecriture de l'xml généré dans le fichier .xml et import
+    file:close()
+    cmd("Import \"" .. fileName .. "\" View " .. startView + id)
+
+end
+
 local function createMacro(id, name)
     local macroId = startMacro + id
     cmd('Store Macro ' .. macroId .. ' "' .. name .. '"')
@@ -73,7 +92,7 @@ local function createMacro(id, name)
     createMacroLine(macroId, 4,
         'Appearance Macro ' .. startMacro .. ' Thru ' .. startMacro + macroId .. ' /h=0 /s=100 /br=100')
     createMacroLine(macroId, 5, 'Appearance Macro ' .. macroId .. ' /h=120 /s=100 /br=100')
-    createMacroLine(macroId, 6, 'Copy View 289 At View 301 /o')
+    createMacroLine(macroId, 6, 'Copy View ' .. startView + id .. ' At View 301 /o')
     createMacroLine(macroId, 7, 'Kill 1')
     createMacroLine(macroId, 8, 'View 301')
     createMacroLine(macroId, 9, 'Macro 125')
@@ -87,7 +106,8 @@ end
 local function updateMacroAppearance(trackId)
     local x = startMacro
     while x < (startMacro + trackId) do
-        cmd('Store Macro 1.' .. x .. '.4 "Appearance Macro ' .. startMacro .. ' Thru ' .. startMacro + trackId .. ' /h=0 /s=100 /br=100"')
+        cmd('Store Macro 1.' .. x .. '.4 "Appearance Macro ' .. startMacro .. ' Thru ' .. startMacro + trackId ..
+                ' /h=0 /s=100 /br=100"')
         x = x + 1
     end
 end
@@ -103,11 +123,15 @@ local function start(arg)
         -- Creation de la macro
         createMacro(trackId, trackName)
 
+        -- Creation de la vue
+        createView(trackId, trackName)
+
         -- Update macro appearance
         updateMacroAppearance(trackId)
 
         -- Creation du TC
         cmd('Store Timecode ' .. startTimecode + trackId .. ' "' .. trackName .. '"')
+        cmd('Assign Timecode ' .. startTimecode + trackId .. ' /offset=' .. textinput('Offset TC ?', '0h0m0s'))
 
         -- Assign dans layout view
         if not getobj.verify(getobj.handle('Layout ' .. layoutTrackID)) then -- creation layout view si existe pas
